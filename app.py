@@ -1,133 +1,116 @@
 import streamlit as st
-import uuid
-from typing import List, Dict, Optional
-import hashlib
-import os
-
-from chatbot import (
-    create_new_chatbot,
-    process_syllabus,
-    generate_study_roadmap,
-    run_chatbot,
-    process_uploaded_files,
-    process_uploaded_syllabus,
-    display_warning,
-    chatbots
-)
-
-import os
 import json
+from utils import syllabus, roadmap, llm_interaction, progress
+from pymongo import MongoClient
 
-# --- Directory and File Management ---
-CHATBOTS_DIR = "chatbots"
-EMBEDDINGS_DIR = "embeddings"
+# MongoDB Connection
+client = MongoClient("mongodb://localhost:27017/")  # Replace with your MongoDB connection string
+db = client["study_buddy"]
+users = db["users"]
 
-# --- Streamlit App Configuration ---
-st.set_page_config(
-    page_title="AI Study Buddy",
-    page_icon=":books:",
-    layout="wide"
-)
+# Initialize session state for user data
+if "user_data" not in st.session_state:
+    st.session_state.user_data = {}
 
-# --- Persistence Functions ---
-CHATBOTS_FILE = "chatbots.json"
+# Page navigation
+page = st.sidebar.selectbox("Navigation", ["Home", "Study", "Progress"])
 
-def load_chatbots():
-    """Loads chatbot data from JSON file."""
-    if os.path.exists(CHATBOTS_FILE):
-        with open(CHATBOTS_FILE, "r") as f:
-            return json.load(f)["chatbots"]
-    return []
+if page == "Home":
+    st.title("Welcome to Your Personalized Tutor")
 
-def save_chatbots(chatbots):
-    """Saves chatbot data to JSON file."""
-    with open(CHATBOTS_FILE, "w") as f:
-        json.dump({"chatbots": chatbots}, f)
-
-# --- Main Streamlit App Flow ---
-if __name__ == "__main__":
-    # Load Chatbots
-    chatbots = load_chatbots()
-
-    # --- Header ---
-    st.title("AI Study Buddy")
-
-    # --- Sidebar ---
-    st.sidebar.title("Chatbot Management")
-
-    # --- Chatbot Actions ---
-    action = st.sidebar.selectbox(
-        "Choose an action:", ["Select Chatbot", "Create New Chatbot"]
-    )
-
-    if action == "Create New Chatbot":
-        topic = st.sidebar.text_input("Chatbot Topic (e.g., Calculus I):")
-        if st.sidebar.button("Create"):
-            if topic:
-                new_chatbot = {
-                    "chatbot_id": str(uuid.uuid4()),
-                    "topic": topic,
-                    "syllabus_data": None,
-                    "roadmap": None,
-                    "study_materials": {}, 
-                    "embedding_id": None
-                }
-                chatbots.append(new_chatbot)
-                save_chatbots(chatbots)
-                st.sidebar.success(f"Chatbot '{topic}' created!")
-                # No need for st.rerun() here
-    elif action == "Select Chatbot":
-        # --- Chatbot Selection ---
-        chatbot_names = [c['topic'] for c in chatbots]
-        if chatbot_names:
-            selected_chatbot_name = st.sidebar.selectbox(
-                "Select a Chatbot:", chatbot_names
-            )
-            selected_chatbot = next(
-                (c for c in chatbots if c['topic'] == selected_chatbot_name), None
-            )
-            if selected_chatbot:
-                st.session_state.selected_chatbot_id = selected_chatbot['chatbot_id']
+    # User login/signup (replace with your preferred authentication method)
+    username = st.text_input("Username")
+    if st.button("Login/Signup"):
+        user_data = users.find_one({"username": username})
+        if user_data:
+            st.session_state.user_data = user_data
         else:
-            st.sidebar.warning("No chatbots created yet. Create one above!")
+            st.session_state.user_data = {"username": username, "syllabus": {}, "roadmap": [], "progress": {}}
+            users.insert_one(st.session_state.user_data)
 
-    # --- File Upload (in Sidebar) ---
-    uploaded_files = st.sidebar.file_uploader(
-        "Upload course materials (PDF/DOC)",
-        type=["pdf", "doc", "docx"],
-        accept_multiple_files=True
-    )
+    if "username" in st.session_state.user_data:
+        st.write(f"Welcome, {st.session_state.user_data['username']}!")
 
-    # --- Syllabus Upload (in Sidebar) ---
-    uploaded_syllabus = st.sidebar.file_uploader(
-        "Upload syllabus (PDF/DOC)", type=["pdf", "doc", "docx"]
-    )
+        # Course topic and syllabus
+        course_topic = st.text_input("Enter Course Topic (e.g., Machine Learning)")
+        difficulty = st.selectbox("Difficulty Level", ["Beginner", "Intermediate", "Advanced"])
+        focus_topics = st.text_area("Enter Focus Topics (optional, comma-separated)")
 
-    # --- Process Files and Syllabus ---
-    if 'selected_chatbot_id' in st.session_state:
-        selected_chatbot = next(
-            (c for c in chatbots if c['chatbot_id'] == st.session_state.selected_chatbot_id), None
-        )
-        if selected_chatbot:
-            if uploaded_files:  # Check if files were uploaded
-                file_hash = hashlib.sha256()
-                for uploaded_file in uploaded_files:
-                    file_hash.update(uploaded_file.name.encode('utf-8'))
-                embedding_id = file_hash.hexdigest()
-                selected_chatbot['embedding_id'] = embedding_id
+        if st.button("Generate Syllabus"):
+            if course_topic:
+                syllabus_data = syllabus.generate_syllabus(course_topic, difficulty, focus_topics)
+                st.session_state.user_data["syllabus"] = syllabus_data
+                users.update_one({"username": username}, {"$set": {"syllabus": syllabus_data}})
+                st.success("Syllabus generated successfully!")
 
-                # Pass embedding_id to process_uploaded_files
-                process_uploaded_files(uploaded_files, selected_chatbot, embedding_id)  
+        if st.session_state.user_data.get("syllabus"):
+            st.write("## Syllabus:")
+            st.json(st.session_state.user_data["syllabus"])
 
-            process_uploaded_syllabus(uploaded_syllabus, selected_chatbot)
-            save_chatbots(chatbots)  # Save after processing
+            if st.button("Generate Roadmap"):
+                roadmap_data = roadmap.generate_roadmap(st.session_state.user_data["syllabus"])
+                st.session_state.user_data["roadmap"] = roadmap_data
+                users.update_one({"username": username}, {"$set": {"roadmap": roadmap_data}})
+                st.success("Roadmap generated successfully!")
 
-    # --- Run the selected chatbot ---
-    if 'selected_chatbot_id' in st.session_state:
-        selected_chatbot = next(
-            (c for c in chatbots if c['chatbot_id'] == st.session_state.selected_chatbot_id), None
-        )
-        if selected_chatbot:
-            col2 = st.empty()
-            with col2:
-                run_chatbot(selected_chatbot)
+elif page == "Study":
+    if "roadmap" in st.session_state.user_data and st.session_state.user_data["roadmap"]:
+        roadmap_data = st.session_state.user_data["roadmap"]
+        progress_data = st.session_state.user_data.get("progress", {})
+
+        # Step selection
+        step_options = [f"Step {step['step_number']}: {step['topic']}" for step in roadmap_data]
+        selected_step = st.selectbox("Select Step", step_options)
+        selected_step_index = step_options.index(selected_step)
+        current_step = roadmap_data[selected_step_index]
+
+        # Display step content and interact with LLM
+        st.write(f"## {current_step['topic']}")
+        if current_step["step_number"] not in progress_data:
+            explanation = llm_interaction.get_explanation(current_step["prompt"])
+            st.write(explanation)
+
+            if st.button("Mark as Completed"):
+                progress_data[current_step["step_number"]] = True
+                st.session_state.user_data["progress"] = progress_data
+                users.update_one({"username": st.session_state.user_data["username"]}, {"$set": {"progress": progress_data}})
+                st.success("Step marked as completed!")
+        else:
+            st.write("You have already completed this step.")
+
+    else:
+        st.write("Please generate a roadmap first.")
+
+elif page == "Progress":
+    if "progress" in st.session_state.user_data and st.session_state.user_data["progress"]:
+        progress_data = st.session_state.user_data["progress"]
+        roadmap_data = st.session_state.user_data["roadmap"]
+        completed_steps = len(progress_data)
+        total_steps = len(roadmap_data)
+        completion_percentage = (completed_steps / total_steps) * 100
+
+        st.write(f"## Progress: {completion_percentage:.2f}%")
+        st.write(f"Completed Steps: {completed_steps}/{total_steps}")
+
+        # Display progress details (e.g., completed steps, scores, etc.)
+        # ...
+
+    else:
+        st.write("No progress data available yet.")
+
+# Error handling (example)
+@st.cache(allow_output_mutation=True)
+def get_error_message():
+    return ""
+
+if "error_message" not in st.session_state:
+    st.session_state.error_message = ""
+
+try:
+    # Your code here
+    pass
+except Exception as e:
+    error_message = str(e)
+    if error_message != st.session_state.error_message:
+        st.session_state.error_message = error_message
+        st.error(error_message)
