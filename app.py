@@ -1,133 +1,61 @@
+# --- app.py ---
 import streamlit as st
-import uuid
-from typing import List, Dict, Optional
-import hashlib
-import os
-
-from chatbot import (
-    create_new_chatbot,
-    process_syllabus,
-    generate_study_roadmap,
-    run_chatbot,
-    process_uploaded_files,
-    process_uploaded_syllabus,
-    display_warning,
-    chatbots
-)
-
-import os
 import json
+from utils import syllabus, roadmap, llm_interaction, progress
+from templates import home, study, progress
+from pymongo import MongoClient
+import yaml
 
-# --- Directory and File Management ---
-CHATBOTS_DIR = "chatbots"
-EMBEDDINGS_DIR = "embeddings"
+# MongoDB Connection
+client = MongoClient("mongodb://localhost:27017/")  # Or your MongoDB connection string
+db = client["study_buddy"]
+users = db["users"]
 
-# --- Streamlit App Configuration ---
-st.set_page_config(
-    page_title="AI Study Buddy",
-    page_icon=":books:",
-    layout="wide"
-)
+# Session state initialization
+if "user_data" not in st.session_state:
+    st.session_state.user_data = {}
+if "page" not in st.session_state:
+    st.session_state.page = "Home"
 
-# --- Persistence Functions ---
-CHATBOTS_FILE = "chatbots.json"
+# Page navigation
+page_options = ["Home", "Study", "Progress"]
+if "syllabus" in st.session_state.user_data and not st.session_state.user_data.get("roadmap"):
+    page_options = ["Home", "Generate Roadmap", "Progress"]
+elif "roadmap" in st.session_state.user_data:
+    page_options = ["Home", "Study", "Progress"]
 
-def load_chatbots():
-    """Loads chatbot data from JSON file."""
-    if os.path.exists(CHATBOTS_FILE):
-        with open(CHATBOTS_FILE, "r") as f:
-            return json.load(f)["chatbots"]
-    return []
+st.session_state.page = st.sidebar.selectbox("Navigation", page_options, index=page_options.index(st.session_state.page))
 
-def save_chatbots(chatbots):
-    """Saves chatbot data to JSON file."""
-    with open(CHATBOTS_FILE, "w") as f:
-        json.dump({"chatbots": chatbots}, f)
+if st.session_state.page == "Home":
+    home.home_page()
 
-# --- Main Streamlit App Flow ---
-if __name__ == "__main__":
-    # Load Chatbots
-    chatbots = load_chatbots()
+elif st.session_state.page == "Generate Roadmap":
+    if "syllabus" in st.session_state.user_data:
+        st.title("Generating Roadmap...")
+        roadmap_data = roadmap.generate_roadmap(st.session_state.user_data["syllabus"])
+        st.session_state.user_data["roadmap"] = roadmap_data
+        users.update_one({"username": st.session_state.user_data["username"]}, {"$set": {"roadmap": roadmap_data}})
+        st.success("Roadmap generated successfully!")
+        st.session_state.page = "Study" 
 
-    # --- Header ---
-    st.title("AI Study Buddy")
+elif st.session_state.page == "Study":
+    study.study_page(st.session_state.user_data, st.session_state.user_data.get("roadmap", []))
 
-    # --- Sidebar ---
-    st.sidebar.title("Chatbot Management")
+elif st.session_state.page == "Progress":
+    progress.progress_page(st.session_state.user_data, st.session_state.user_data.get("roadmap", []))
 
-    # --- Chatbot Actions ---
-    action = st.sidebar.selectbox(
-        "Choose an action:", ["Select Chatbot", "Create New Chatbot"]
-    )
+# Error handling
+@st.cache_data()
+def get_error_message():
+    return ""
 
-    if action == "Create New Chatbot":
-        topic = st.sidebar.text_input("Chatbot Topic (e.g., Calculus I):")
-        if st.sidebar.button("Create"):
-            if topic:
-                new_chatbot = {
-                    "chatbot_id": str(uuid.uuid4()),
-                    "topic": topic,
-                    "syllabus_data": None,
-                    "roadmap": None,
-                    "study_materials": {}, 
-                    "embedding_id": None
-                }
-                chatbots.append(new_chatbot)
-                save_chatbots(chatbots)
-                st.sidebar.success(f"Chatbot '{topic}' created!")
-                # No need for st.rerun() here
-    elif action == "Select Chatbot":
-        # --- Chatbot Selection ---
-        chatbot_names = [c['topic'] for c in chatbots]
-        if chatbot_names:
-            selected_chatbot_name = st.sidebar.selectbox(
-                "Select a Chatbot:", chatbot_names
-            )
-            selected_chatbot = next(
-                (c for c in chatbots if c['topic'] == selected_chatbot_name), None
-            )
-            if selected_chatbot:
-                st.session_state.selected_chatbot_id = selected_chatbot['chatbot_id']
-        else:
-            st.sidebar.warning("No chatbots created yet. Create one above!")
+if "error_message" not in st.session_state:
+    st.session_state.error_message = ""
 
-    # --- File Upload (in Sidebar) ---
-    uploaded_files = st.sidebar.file_uploader(
-        "Upload course materials (PDF/DOC)",
-        type=["pdf", "doc", "docx"],
-        accept_multiple_files=True
-    )
-
-    # --- Syllabus Upload (in Sidebar) ---
-    uploaded_syllabus = st.sidebar.file_uploader(
-        "Upload syllabus (PDF/DOC)", type=["pdf", "doc", "docx"]
-    )
-
-    # --- Process Files and Syllabus ---
-    if 'selected_chatbot_id' in st.session_state:
-        selected_chatbot = next(
-            (c for c in chatbots if c['chatbot_id'] == st.session_state.selected_chatbot_id), None
-        )
-        if selected_chatbot:
-            if uploaded_files:  # Check if files were uploaded
-                file_hash = hashlib.sha256()
-                for uploaded_file in uploaded_files:
-                    file_hash.update(uploaded_file.name.encode('utf-8'))
-                embedding_id = file_hash.hexdigest()
-                selected_chatbot['embedding_id'] = embedding_id
-
-                # Pass embedding_id to process_uploaded_files
-                process_uploaded_files(uploaded_files, selected_chatbot, embedding_id)  
-
-            process_uploaded_syllabus(uploaded_syllabus, selected_chatbot)
-            save_chatbots(chatbots)  # Save after processing
-
-    # --- Run the selected chatbot ---
-    if 'selected_chatbot_id' in st.session_state:
-        selected_chatbot = next(
-            (c for c in chatbots if c['chatbot_id'] == st.session_state.selected_chatbot_id), None
-        )
-        if selected_chatbot:
-            col2 = st.empty()
-            with col2:
-                run_chatbot(selected_chatbot)
+try:
+    pass  # No additional code needed here for now
+except Exception as e:
+    error_message = str(e)
+    if error_message != st.session_state.error_message:
+        st.session_state.error_message = error_message
+        st.error(error_message)
