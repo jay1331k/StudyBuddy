@@ -1,6 +1,10 @@
 import streamlit as st
 from pymongo import MongoClient
 from utils import syllabus, roadmap
+import markdown  # Import markdown library
+import json 
+import yaml
+
 
 # MongoDB Connection (no authentication for now)
 client = MongoClient("mongodb://localhost:27017/")
@@ -46,7 +50,19 @@ def home_page():
 
         if st.session_state.user_data.get("syllabus"):
             st.write("## Syllabus:")
-            st.json(st.session_state.user_data["syllabus"])
+
+            syllabus_data = st.session_state.user_data["syllabus"]
+
+            syllabus_markdown = ""
+            for unit in syllabus_data["units"]:
+                syllabus_markdown += f"**Unit {unit['unit_number']}: {unit['unit_title']}**\n"
+                for topic in unit["topics"]:
+                    syllabus_markdown += f"* **Topic {topic['topic_number']}: {topic['topic_title']}**\n"
+                    for subtopic in topic["subtopics"]:
+                        syllabus_markdown += f"    * {subtopic}\n"
+                syllabus_markdown += "\n" # Add a newline for spacing
+
+            st.markdown(syllabus_markdown) 
 
             if st.button("Generate Roadmap"):
                 roadmap_data = roadmap.generate_roadmap(st.session_state.user_data["syllabus"])

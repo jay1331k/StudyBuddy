@@ -1,21 +1,23 @@
+# --- app.py ---
 import streamlit as st
 import json
 from utils import syllabus, roadmap, llm_interaction, progress
-from templates import home, study, progress  # Import the page functions
+from templates import home, study, progress
 from pymongo import MongoClient
+import yaml
 
-# MongoDB Connection (no authentication for now)
-client = MongoClient("mongodb://localhost:27017/")
+# MongoDB Connection
+client = MongoClient("mongodb://localhost:27017/")  # Or your MongoDB connection string
 db = client["study_buddy"]
 users = db["users"]
 
-# Initialize session state for user data and page
+# Session state initialization
 if "user_data" not in st.session_state:
     st.session_state.user_data = {}
 if "page" not in st.session_state:
     st.session_state.page = "Home"
 
-# Page navigation (dynamically updated)
+# Page navigation
 page_options = ["Home", "Study", "Progress"]
 if "syllabus" in st.session_state.user_data and not st.session_state.user_data.get("roadmap"):
     page_options = ["Home", "Generate Roadmap", "Progress"]
@@ -34,7 +36,7 @@ elif st.session_state.page == "Generate Roadmap":
         st.session_state.user_data["roadmap"] = roadmap_data
         users.update_one({"username": st.session_state.user_data["username"]}, {"$set": {"roadmap": roadmap_data}})
         st.success("Roadmap generated successfully!")
-        st.session_state.page = "Study"  # Automatically switch to the Study page
+        st.session_state.page = "Study" 
 
 elif st.session_state.page == "Study":
     study.study_page(st.session_state.user_data, st.session_state.user_data.get("roadmap", []))

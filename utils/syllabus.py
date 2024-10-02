@@ -3,6 +3,8 @@ from dotenv import load_dotenv
 import google.generativeai as genai
 import json
 import streamlit as st
+import yaml
+
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
@@ -61,10 +63,10 @@ def generate_syllabus(course_topic, difficulty, focus_topics):
     completion = model.generate_content(prompt)
 
     try:
-        syllabus_data = json.loads(completion.text.strip()) 
+        syllabus_data = yaml.safe_load(completion.text.strip()) # changed here json.loads to yaml.safe_load
         return syllabus_data
-    except json.JSONDecodeError as e:
-        print(f"Error decoding JSON: {e}")  # Print the error for debugging
+    except (yaml.YAMLError, json.JSONDecodeError) as e:  # Handle both YAML and JSON errors
+        print(f"Error decoding: {e}")
         print(f"Raw LLM Response: {completion.text}")
-        st.error("There was an error generating the syllabus. Please try again or rephrase your course topic.")
-        return None 
+        st.error("There was an error generating the syllabus. Please try again or rephrase your query.")
+        return None
