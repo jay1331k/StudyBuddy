@@ -2,9 +2,10 @@ import os
 from dotenv import load_dotenv
 import google.generativeai as genai
 import json
+import streamlit as st
 
 load_dotenv()
-genai.configure(api_key=os.getenv("API_KEY"))
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 def generate_syllabus(course_topic, difficulty, focus_topics):
     """
@@ -16,7 +17,7 @@ def generate_syllabus(course_topic, difficulty, focus_topics):
         focus_topics (str): Comma-separated list of focus topics (optional).
 
     Returns:
-        dict: A dictionary representing the syllabus with units, topics, and subtopics.
+        dict: A dictionary representing the syllabus (or None if there's an error).
     """
 
     prompt = f"""
@@ -28,7 +29,7 @@ def generate_syllabus(course_topic, difficulty, focus_topics):
 
     Format the syllabus as a JSON object with the following structure:
 
-    ```json
+    
     {{
       "course_topic": "Course Topic",
       "difficulty": "Difficulty Level",
@@ -52,12 +53,18 @@ def generate_syllabus(course_topic, difficulty, focus_topics):
         // ... more units
       ]
     }}
-    ```
+    
+    Ensure that the entire response is a valid JSON object without preamble. 
     """
-    model = genai.GenerativeModel(model_name='gemini-1.5-flash')
-    completion = model.generate_content(
-        prompt=prompt,
-    )
 
-    syllabus_data = json.loads(completion.result)
-    return syllabus_data
+    model = genai.GenerativeModel(model_name='gemini-1.5-flash')
+    completion = model.generate_content(prompt)
+
+    try:
+        syllabus_data = json.loads(completion.text.strip()) 
+        return syllabus_data
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON: {e}")  # Print the error for debugging
+        print(f"Raw LLM Response: {completion.text}")
+        st.error("There was an error generating the syllabus. Please try again or rephrase your course topic.")
+        return None 

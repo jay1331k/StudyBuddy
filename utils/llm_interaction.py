@@ -4,7 +4,7 @@ import google.generativeai as genai
 import json
 
 load_dotenv()
-genai.configure(api_key=os.getenv("API_KEY"))
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 def get_explanation(prompt):
     """
@@ -19,11 +19,11 @@ def get_explanation(prompt):
 
     model = genai.GenerativeModel(model_name='gemini-1.5-flash')
     completion = model.generate_content(
-        prompt=prompt,
+        prompt
     )
 
     try:
-        explanation_data = json.loads(completion.result)
+        explanation_data = json.loads(completion.text.strip())
         # Format the explanation based on the JSON structure defined in roadmap.py
         explanation = f"""
         **Introduction:**
@@ -55,4 +55,4 @@ def get_explanation(prompt):
 
     except json.JSONDecodeError:
         # Handle cases where the LLM response is not in the expected JSON format
-        return completion.result
+        return completion.text
