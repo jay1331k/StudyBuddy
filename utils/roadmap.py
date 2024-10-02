@@ -18,39 +18,41 @@ def generate_roadmap(syllabus_data):
             ## {topic['topic_title']}
 
             **Introduction:**
-            Provide a brief introduction to the topic "{topic['topic_title']}", explaining its importance and relevance within the broader context of {syllabus_data['course_topic']}.
+            Provide a brief introduction to the topic "{topic['topic_title']}", explaining its importance. 
 
             **Definition:**
-            What is the definition of "{topic['topic_title']}"? Provide a clear and concise definition, using simple language that a beginner can understand.
+            What is the definition of "{topic['topic_title']}"? 
 
             **Analogy:**
-            Can you explain "{topic['topic_title']}" using an analogy? Relate it to a real-world concept or scenario that makes it easier to grasp.
+            Can you explain "{topic['topic_title']}" using an analogy?
 
             **Examples:**
-            Provide 2-3 concrete examples of "{topic['topic_title']}" in action. These examples should illustrate how the concept is applied in practice.
+            Provide 2-3 concrete examples of "{topic['topic_title']}" in action.
 
             **MCQ Questions:**
-            Generate 3 multiple-choice questions (with 4 options each) that test the user's understanding of "{topic['topic_title']}". Include the correct answer for each question.
-
-            **Format the output as a JSON object with the following structure:**
+            Generate 3 multiple-choice questions (with 4 options each) related to "{topic['topic_title']}".
 
             ```json
             {{
-              "introduction": "Introduction text",
-              "definition": "Definition text",
-              "analogy": "Analogy text",
+              "introduction": "Introduction text...",
+              "definition": "Definition text...",
+              "analogy": "Analogy text...",
               "examples": [
-                "Example 1",
-                "Example 2",
-                // ...
+                "Example 1...",
+                "Example 2..."
               ],
               "mcq_questions": [
                 {{
-                  "question": "Question text",
-                  "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
-                  "answer": "Correct answer"
+                  "question": "Question 1...",
+                  "options": [
+                    "Option 1...", 
+                    "Option 2...",
+                    "Option 3...",
+                    "Option 4..."
+                  ],
+                  "answer": "Correct Answer..." 
                 }},
-                // ... more questions
+                // ... more MCQ questions in the same format
               ]
             }}
             ```

@@ -13,23 +13,7 @@ def update_content(step_index, roadmap_data):
     explanation_md, mcq_data = llm_interaction.get_explanation(current_step["topic"])  # Pass the prompt here
     st.markdown(explanation_md)   # Display explanation
 
-    # --- Display MCQ questions in a separate section ---
-    st.write("## MCQ Questions")  # Heading for MCQs
-    for i, question_data in enumerate(mcq_data):
-        st.write(f"**Question {i+1}:** {question_data['question']}")
-        selected_option = st.radio(
-            f"Select an option for question {i+1}:",
-            question_data['options'], 
-            key=f"mcq_{current_step['step_number']}_{i}"  # Unique key for each question
-        )
-
-        # Check if the selected option is correct
-        if st.button(f"Check Answer for Q{i+1}", key=f"check_{current_step['step_number']}_{i}"):
-            if selected_option == question_data['answer']:
-                st.success("Correct!")
-            else:
-                st.error(f"Incorrect. The correct answer is: {question_data['answer']}")
-
+    
 def study_page(user_data, roadmap_data):
     st.title("Study Time!")
 

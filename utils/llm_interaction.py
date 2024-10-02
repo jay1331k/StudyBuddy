@@ -40,6 +40,7 @@ def get_explanation(prompt):
 
         # MCQ Section
         mcq_data = explanation_data.get('mcq_questions', [])
+        
         return explanation_md, mcq_data  # Return both explanation and MCQ data
 
     except json.JSONDecodeError:
